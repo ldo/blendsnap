@@ -29,6 +29,8 @@
 import sys
 import os
 import enum
+from hashlib import \
+    sha256
 import time
 import itertools
 import errno
@@ -40,7 +42,7 @@ bl_info = \
     {
         "name" : "Blendsnap",
         "author" : "Lawrence D’Oliveiro <ldo@geek-central.gen.nz>",
-        "version" : (0, 5, 0),
+        "version" : (0, 6, 0),
         "blender" : (2, 92, 0),
         "location" : "File > Snapshots",
         "description" : "manage versions of a .blend file using SQLite",
@@ -54,7 +56,7 @@ bl_info = \
 # Database stuff
 #-
 
-snapshot_suffix = ".ver"
+snapshot_suffix = ";"
 
 class DB_OPEN(enum.IntEnum) :
     "database opening modes."
@@ -87,8 +89,14 @@ def open_db(dbname, mode) :
             "    snapshot_id integer not null,\n" # = snapshots.id
             "    path varchar not null,\n"
             "    timestamp double not null,\n"
-            "    contents blob not null,\n"
+            "    sha256hash varchar not null,\n" # = file_blobs.sha256hash
             "    primary key (snapshot_id, path)\n"
+            "  )\n",
+            "create table file_blobs\n"
+              # contents of files separated out to allow deduping
+            "  (\n"
+            "    contents blob not null,\n"
+            "    sha256hash varchar primary key not null\n" # hex hash of contents
             "  )\n",
         ]
     result = \
@@ -216,12 +224,14 @@ class LoadSnapshot(bpy.types.Operator) :
             for childname, timestamp, contents in db_iter \
               (
                 db,
-                    "select files.path, files.timestamp, files.contents from snapshots"
-                    " inner join files on snapshots.id = files.snapshot_id where snapshots.id = %d"
+                    "select files.path, files.timestamp, file_blobs.contents from snapshots"
+                    " inner join files on snapshots.id = files.snapshot_id left join file_blobs"
+                    " on files.sha256hash = file_blobs.sha256hash where snapshots.id = %d"
                 %
                     snapid
               ) \
             :
+                assert contents != None
                 sys.stderr.write("restore %s\n" % childname)
                 childpath = os.path.join(parent_dir, childname)
                 os.makedirs(os.path.split(childpath)[0], exist_ok = True)
@@ -278,15 +288,25 @@ class SaveSnapshot(bpy.types.Operator) :
             itempath = os.path.join(parent_dir, item)
             iteminfo = os.lstat(itempath)
             contents = open(itempath, "rb").read()
+            contents_hash = sha256(contents).hexdigest()
             cu.execute \
               (
-                    "insert into files(snapshot_id, path, timestamp, contents) values(%d, %s, %s, %s)"
+                    "insert or ignore into file_blobs(contents, sha256hash) values(%s, %s)"
+                %
+                    (
+                        sqlite.format_sql_value(contents),
+                        sqlite.format_sql_value(contents_hash),
+                    )
+              )
+            cu.execute \
+              (
+                    "insert into files(snapshot_id, path, timestamp, sha256hash) values(%d, %s, %s, %s)"
                 %
                     (
                         snapid,
                         sqlite.format_sql_value(item),
                         str(iteminfo.st_mtime),
-                        sqlite.format_sql_value(contents),
+                        sqlite.format_sql_value(contents_hash),
                     )
               )
         #end save_file
