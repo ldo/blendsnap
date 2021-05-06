@@ -1,0 +1,76 @@
+Blendsnap is an addon for Blender 2.9x <https://www.blender.org/> that
+lets you keep track of multiple versions of a .blend file using an
+SQLite <https://sqlite.org/> database. Blender itself lets
+you keep older versions of a file each time you save, up to a maximum
+of 32; using a snapshot system extends this to unlimited versions, and
+also lets you attach a comment to each one to remind yourself why it
+was saved.
+
+Once you have installed the addon and enabled it for the current
+document, you will see an extra submenu at the bottom of your “File”
+menu, entitled “Snapshots”: this contains two items, “Load
+Snapshot...” and “Save Snapshot...”. Selecting “Save Snapshot...” will
+display a popup letting you enter a comment to be associated with this
+snapshot; clicking “OK” will save the current document, along with any
+external files it depends on (fonts, images, libraries, sounds,
+scripts) into the snapshot file and attach the comment. If your
+document is called “foo.blend”, then the snapshot file will be called
+“foo.blend;”. Note that the document has to have been saved at least
+once (i.e. it cannot be untitled) before the snapshot file can be
+created, because it takes its name from the .blend file.
+
+Having snapshotted a version of the document, you can reload that
+version at any subsequent time by selecting “Load Snapshot...”: this
+will display a list of the timestamps and comments associated with all
+the snapshots you previously saved, from which you can select one and
+click “OK” to reload that version. This will WIPE OUT THE COPY OF THE
+DOCUMENT YOU WERE WORKING ON (both in-memory and on-disk) ALONG WITH
+ITS DEPENDENCIES, so you may want to make sure that was also saved in
+the snapshot database before loading the older version.
+
+Blender doesn’t seem to allow for attaching “Cancel” buttons to popup
+dialogs; however, you can dismiss the load and save dialogs without
+performing any action by pressing the Escape key.
+
+## To Git Or Not To Git ##
+
+I previously wrote another addon called Blendgit
+<https://github.com/ldo/blendgit/> which does the same sort of thing,
+only saving the versions in a Git repository. Git
+<https://git-scm.com/> is very popular among developers -- I use it
+myself for just about all my software projects, including this one.
+
+Git is designed to keep track of the differences between versions.
+This is important to developers, who often need to trace back through
+the modification history to discover when a newly-discovered bug was
+introduced. Git supports multiple simultaneous branches of development
+(for example, a “stable” branch with only incremental bugfix changes
+allowed, versus an “experimental” branch with new, unstable
+enhancements still undergoing testing). It also allows for merging of
+branches, so that for example bug fixes done on one branch can also be
+incorporated into another parallel branch. Sometimes merges can
+have conflicts, which require some hand-editing to fix.
+
+But such features depend on being able to keep track of differences between
+files, which really only works with text files. This is true of program
+sources, and it is also true of some content document formats, like
+SVG and Markdown. But it is not true of .blend files, or of image
+textures which are commonly used in CG work. This limits the usefulness
+of Git for keeping track of the modification history of such files.
+
+Also, revisions in a Git repo are constrained to follow a parent-child
+relationship. But without the ability to implement branching and
+merging of documents, this also does not seem very useful.
+
+Thus, I decided to abandon the idea of using Git altogether, and
+adopt the simpler model of a collection of snapshots of your documents.
+Each snapshot has a timestamp and can also have a descriptive message
+associated with it, and that’s it. There is no concept of branching
+or merging, or of parent-child relationships. It is possible to go
+back and change the descriptive message associated with a snapshot
+(not possible with Git revision comments, without rewriting the
+commit history), and selectively delete past snapshots when it is
+decided they are no longer needed, to save space or reduce clutter.
+
+Lawrence D'Oliveiro <ldo@geek-central.gen.nz>
+2021 May 6
